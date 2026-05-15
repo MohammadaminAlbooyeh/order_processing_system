@@ -1,0 +1,23 @@
+service:
+  admin:
+    http:
+      host: ":14269"
+
+  collector:
+    http:
+      port: 14268
+    grpc:
+      port: 14250
+
+  query:
+    http:
+      port: 16686
+
+sampler:
+  type: probabilistic
+  param: 1.0
+
+storage:
+  type: memory
+  options:
+    max-traces: 10000

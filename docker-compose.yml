@@ -22,7 +22,9 @@ services:
 
   # Order API Service
   order-api:
-    build: ./services/order-api
+    build:
+      context: .
+      dockerfile: services/order-api/Dockerfile
     ports:
       - "8001:8000"
     environment:
@@ -31,11 +33,12 @@ services:
     depends_on:
       - postgres
       - redis
-    command: uvicorn main:app --host 0.0.0.0
 
   # User Service
   user-service:
-    build: ./services/user-service
+    build:
+      context: .
+      dockerfile: services/user-service/Dockerfile
     ports:
       - "8002:8000"
     environment:
@@ -45,18 +48,21 @@ services:
 
   # Worker Service (Celery)
   worker:
-    build: ./services/worker-service
+    build:
+      context: .
+      dockerfile: services/worker-service/Dockerfile
     environment:
       CELERY_BROKER_URL: redis://redis:6379
       DATABASE_URL: postgresql://ecommerce:password@postgres:5432/orders
     depends_on:
       - redis
       - postgres
-    command: celery -A tasks worker --loglevel=info
 
   # Notification Service
   notification:
-    build: ./services/notification-service
+    build:
+      context: .
+      dockerfile: services/notification-service/Dockerfile
     ports:
       - "8003:8000"
     environment:
@@ -87,3 +93,6 @@ services:
     image: jaegertracing/all-in-one
     ports:
       - "16686:16686"
+
+volumes:
+  postgres_data:

@@ -1,48 +1,66 @@
-# services/order-api/routes.py
-from fastapi import FastAPI, HTTPException
-from sqlalchemy import create_engine
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from database import get_db
+from models import Order
+from schemas import OrderCreate, OrderResponse
 import redis
 import json
+import os
+import sys
 
-app = FastAPI()
-db = create_engine("postgresql://...")
-cache = redis.Redis(host='redis', port=6379)
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../'))
+from shared.logging_config import setup_logging
 
-@app.post("/orders")
-async def create_order(order_data: OrderSchema):
-    """
-    User creates an order
-    """
-    # 1. Validate request
-    # 2. Save to PostgreSQL
-    new_order = Order(**order_data.dict())
-    db.add(new_order)
-    db.commit()
-    
-    # 3. Publish event to queue for async processing
-    # This tells workers: "Hey, new order created!"
-    cache.lpush("order_queue", json.dumps({
-        "event": "ORDER_CREATED",
-        "order_id": new_order.id,
-        "user_id": new_order.user_id
-    }))
-    
-    return {"order_id": new_order.id, "status": "pending"}
+logger = setup_logging(__name__)
+REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379")
+cache = redis.Redis.from_url(REDIS_URL)
 
-@app.get("/orders/{order_id}")
-async def get_order(order_id: int):
-    """
-    User checks order status
-    """
-    # Check cache first (fast)
-    cached = cache.get(f"order:{order_id}")
-    if cached:
-        return json.loads(cached)
-    
-    # Cache miss, query database
-    order = db.query(Order).filter(Order.id == order_id).first()
-    
-    # Cache it for next time
-    cache.setex(f"order:{order_id}", 3600, json.dumps(order))
-    
-    return order
+router = APIRouter(prefix="/orders", tags=["orders"])
+
+
+@router.post("", response_model=OrderResponse, status_code=201)
+async def create_order(body: OrderCreate, db: Session = Depends(get_db)):
+    try:
+        logger.info(f"Creating order for user {body.user_id}")
+        new_order = Order(**body.model_dump())
+        db.add(new_order)
+        db.commit()
+        db.refresh(new_order)
+
+        cache.lpush("order_queue", json.dumps({
+            "event": "ORDER_CREATED",
+            "order_id": new_order.id,
+            "user_id": new_order.user_id,
+        }))
+
+        logger.info(f"Order {new_order.id} created successfully")
+        return OrderResponse.model_validate(new_order)
+    except Exception as e:
+        logger.error(f"Error creating order: {e}", exc_info=True)
+        raise
+
+
+@router.get("/{order_id}", response_model=OrderResponse)
+async def get_order(order_id: int, db: Session = Depends(get_db)):
+    try:
+        logger.info(f"Fetching order {order_id}")
+        cached = cache.get(f"order:{order_id}")
+        if cached:
+            logger.info(f"Cache hit for order {order_id}")
+            return json.loads(cached)
+
+        logger.info(f"Cache miss for order {order_id}, querying database")
+        order = db.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            logger.warning(f"Order {order_id} not found")
+            raise HTTPException(status_code=404, detail="Order not found")
+
+        cache.setex(f"order:{order_id}", 3600, json.dumps(OrderResponse.model_validate(order).model_dump()))
+
+        logger.info(f"Order {order_id} retrieved successfully")
+        return OrderResponse.model_validate(order)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving order {order_id}: {e}", exc_info=True)
+        raise
