@@ -8,16 +8,22 @@ import logging
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../'))
 from shared.logging_config import setup_logging, setup_prometheus_metrics
+from shared.settings import get_settings
+from shared.tracing import setup_all_instrumentation
 from email import send_email
 from sms import send_sms
 
 logger = setup_logging(__name__)
+settings = get_settings()
 
-REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379")
+REDIS_URL = settings.redis_url
 queue = redis.Redis.from_url(REDIS_URL)
+
+logger.info(f"Initializing Notification Service with Redis: {settings.redis_url}")
 
 app = FastAPI()
 app = setup_prometheus_metrics(app)
+setup_all_instrumentation(app, "notification-service", settings)
 event_listener_task = None
 
 

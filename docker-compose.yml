@@ -30,9 +30,13 @@ services:
     environment:
       DATABASE_URL: postgresql://ecommerce:password@postgres:5432/orders
       REDIS_URL: redis://redis:6379
+      JAEGER_ENABLED: "true"
+      JAEGER_HOST: jaeger
+      JAEGER_PORT: "6831"
     depends_on:
       - postgres
       - redis
+      - jaeger
 
   # User Service
   user-service:
@@ -43,8 +47,12 @@ services:
       - "8002:8000"
     environment:
       DATABASE_URL: postgresql://ecommerce:password@postgres:5432/orders
+      JAEGER_ENABLED: "true"
+      JAEGER_HOST: jaeger
+      JAEGER_PORT: "6831"
     depends_on:
       - postgres
+      - jaeger
 
   # Worker Service (Celery)
   worker:
@@ -54,9 +62,13 @@ services:
     environment:
       CELERY_BROKER_URL: redis://redis:6379
       DATABASE_URL: postgresql://ecommerce:password@postgres:5432/orders
+      JAEGER_ENABLED: "true"
+      JAEGER_HOST: jaeger
+      JAEGER_PORT: "6831"
     depends_on:
       - redis
       - postgres
+      - jaeger
 
   # Notification Service
   notification:
@@ -69,8 +81,12 @@ services:
       REDIS_URL: redis://redis:6379
       SMTP_SERVER: smtp.gmail.com
       SMTP_PORT: 587
+      JAEGER_ENABLED: "true"
+      JAEGER_HOST: jaeger
+      JAEGER_PORT: "6831"
     depends_on:
       - redis
+      - jaeger
 
   # Monitoring: Prometheus
   prometheus:

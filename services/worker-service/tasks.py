@@ -8,10 +8,13 @@ import logging
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../'))
 from shared.logging_config import setup_logging
+from shared.settings import get_settings
 
 logger = setup_logging(__name__)
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://ecommerce:password@postgres:5432/orders")
-REDIS_URL = os.getenv("CELERY_BROKER_URL", "redis://redis:6379")
+settings = get_settings()
+
+DATABASE_URL = settings.database_url
+REDIS_URL = settings.celery_broker_url
 
 app = Celery("tasks", broker=REDIS_URL)
 

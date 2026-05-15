@@ -13,8 +13,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../'))
 from shared.logging_config import setup_logging
 
 logger = setup_logging(__name__)
-REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379")
-USER_SERVICE_URL = os.getenv("USER_SERVICE_URL", "http://user-service:8000")
+
+from shared.settings import get_settings
+settings = get_settings()
+
+REDIS_URL = settings.redis_url
+USER_SERVICE_URL = settings.user_service_url
 cache = redis.Redis.from_url(REDIS_URL)
 
 router = APIRouter(prefix="/orders", tags=["orders"])
