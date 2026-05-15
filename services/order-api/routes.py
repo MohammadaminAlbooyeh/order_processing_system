@@ -1,13 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import desc
 from database import get_db
 from models import Order
-from schemas import OrderCreate, OrderResponse
+from schemas import OrderCreate, OrderResponse, OrderUpdate, OrderListResponse
 import redis
 import json
 import os
 import sys
 import httpx
+from datetime import datetime
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../'))
 from shared.logging_config import setup_logging
@@ -96,4 +98,138 @@ async def get_order(order_id: int, db: Session = Depends(get_db)):
         raise
     except Exception as e:
         logger.error(f"Error retrieving order {order_id}: {e}", exc_info=True)
+        raise
+
+
+@router.get("", response_model=OrderListResponse)
+async def list_orders(
+    user_id: int | None = Query(None, description="Filter by user ID"),
+    status: str | None = Query(None, description="Filter by status"),
+    limit: int = Query(10, ge=1, le=100, description="Results per page"),
+    offset: int = Query(0, ge=0, description="Number of results to skip"),
+    db: Session = Depends(get_db),
+):
+    """List orders with pagination and filtering"""
+    try:
+        logger.info(f"Listing orders - user_id: {user_id}, status: {status}, limit: {limit}, offset: {offset}")
+
+        query = db.query(Order)
+
+        if user_id:
+            query = query.filter(Order.user_id == user_id)
+
+        if status:
+            query = query.filter(Order.status == status)
+
+        total = query.count()
+
+        orders = query.order_by(desc(Order.created_at)).limit(limit).offset(offset).all()
+
+        logger.info(f"Retrieved {len(orders)} orders out of {total}")
+
+        return OrderListResponse(
+            orders=[OrderResponse.model_validate(o) for o in orders],
+            total=total,
+            limit=limit,
+            offset=offset,
+        )
+    except Exception as e:
+        logger.error(f"Error listing orders: {e}", exc_info=True)
+        raise
+
+
+@router.put("/{order_id}", response_model=OrderResponse)
+async def update_order(
+    order_id: int,
+    body: OrderUpdate,
+    db: Session = Depends(get_db),
+):
+    """Update order status or destination"""
+    try:
+        logger.info(f"Updating order {order_id}")
+
+        order = db.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            logger.warning(f"Order {order_id} not found")
+            raise HTTPException(status_code=404, detail="Order not found")
+
+        if body.status:
+            valid_transitions = {
+                "pending": ["processing", "cancelled"],
+                "processing": ["shipped", "cancelled"],
+                "shipped": ["delivered", "cancelled"],
+                "delivered": [],
+                "cancelled": [],
+            }
+
+            if body.status not in valid_transitions.get(order.status, []):
+                logger.warning(f"Invalid status transition for order {order_id}: {order.status} -> {body.status}")
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Cannot transition from {order.status} to {body.status}"
+                )
+
+            old_status = order.status
+            order.status = body.status
+            logger.info(f"Order {order_id} status changed: {old_status} -> {body.status}")
+
+        if body.destination:
+            order.destination = body.destination
+            logger.info(f"Order {order_id} destination updated")
+
+        db.commit()
+        db.refresh(order)
+
+        cache.delete(f"order:{order_id}")
+
+        logger.info(f"Order {order_id} updated successfully")
+        return OrderResponse.model_validate(order)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating order {order_id}: {e}", exc_info=True)
+        raise
+
+
+@router.delete("/{order_id}")
+async def cancel_order(order_id: int, db: Session = Depends(get_db)):
+    """Cancel an order"""
+    try:
+        logger.info(f"Cancelling order {order_id}")
+
+        order = db.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            logger.warning(f"Order {order_id} not found")
+            raise HTTPException(status_code=404, detail="Order not found")
+
+        if order.status in ["shipped", "delivered", "cancelled"]:
+            logger.warning(f"Cannot cancel order {order_id} with status {order.status}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot cancel order with status {order.status}"
+            )
+
+        order.status = "cancelled"
+        db.commit()
+        db.refresh(order)
+
+        cache.delete(f"order:{order_id}")
+
+        try:
+            import redis as r
+            r_client = r.Redis.from_url(REDIS_URL)
+            r_client.lpush("notification_queue", json.dumps({
+                "type": "ORDER_CANCELLED",
+                "order_id": order_id,
+                "user_id": order.user_id,
+            }))
+        except Exception as e:
+            logger.warning(f"Failed to publish ORDER_CANCELLED event: {e}")
+
+        logger.info(f"Order {order_id} cancelled successfully")
+        return {"detail": "Order cancelled successfully", "order_id": order_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error cancelling order {order_id}: {e}", exc_info=True)
         raise

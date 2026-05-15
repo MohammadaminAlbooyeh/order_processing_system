@@ -1,12 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from database import get_db
 from models import User
 from auth import hash_password, verify_password, create_access_token, decode_access_token
 import sys
 import os
+import re
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../'))
 from shared.logging_config import setup_logging
@@ -19,9 +20,34 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 class RegisterRequest(BaseModel):
     email: EmailStr
-    password: str
-    full_name: str | None = None
-    phone: str | None = None
+    password: str = Field(..., min_length=8, max_length=100, description="Password must be 8-100 characters")
+    full_name: str | None = Field(None, min_length=2, max_length=100)
+    phone: str | None = Field(None, max_length=20)
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        if not any(c.isupper() for c in v):
+            raise ValueError("Password must contain at least one uppercase letter")
+        if not any(c.isdigit() for c in v):
+            raise ValueError("Password must contain at least one digit")
+        return v
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        if not re.match(r"^\+?1?\d{9,15}$", v):
+            raise ValueError("Phone number must be a valid format (9-15 digits, optional + prefix)")
+        return v
+
+    @field_validator("full_name")
+    @classmethod
+    def validate_full_name(cls, v: str | None) -> str | None:
+        if v is not None and not re.match(r"^[a-zA-Z\s'-]{2,100}$", v):
+            raise ValueError("Full name can only contain letters, spaces, hyphens, and apostrophes")
+        return v
 
 
 class LoginRequest(BaseModel):
@@ -143,8 +169,24 @@ def get_profile(current_user: User = Depends(get_current_user)):
 
 
 class UpdateProfileRequest(BaseModel):
-    full_name: str | None = None
-    phone: str | None = None
+    full_name: str | None = Field(None, min_length=2, max_length=100)
+    phone: str | None = Field(None, max_length=20)
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        if not re.match(r"^\+?1?\d{9,15}$", v):
+            raise ValueError("Phone number must be a valid format (9-15 digits, optional + prefix)")
+        return v
+
+    @field_validator("full_name")
+    @classmethod
+    def validate_full_name(cls, v: str | None) -> str | None:
+        if v is not None and not re.match(r"^[a-zA-Z\s'-]{2,100}$", v):
+            raise ValueError("Full name can only contain letters, spaces, hyphens, and apostrophes")
+        return v
 
 
 @router.patch("/me", response_model=UserResponse)

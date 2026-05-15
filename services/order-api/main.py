@@ -50,3 +50,33 @@ async def startup():
 @app.on_event("shutdown")
 async def shutdown():
     logger.info("Order API service shutting down")
+
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint with dependency status"""
+    from shared.health import HealthCheckResponse, check_database, check_redis, determine_overall_status
+    from datetime import datetime
+    from database import SessionLocal
+
+    dependencies = {}
+
+    db = SessionLocal()
+    try:
+        dependencies["database"] = check_database(db)
+    finally:
+        db.close()
+
+    try:
+        dependencies["redis"] = check_redis(cache)
+    except Exception as e:
+        logger.warning(f"Redis health check error: {e}")
+        dependencies["redis"] = {"status": "unhealthy", "type": "redis", "error": str(e)}
+
+    status = determine_overall_status(dependencies)
+    health_response = HealthCheckResponse(status, datetime.utcnow(), dependencies)
+
+    status_code = 200 if status == "healthy" else 503 if status == "unhealthy" else 200
+
+    return {"status_code": status_code, **health_response.to_dict()}
+

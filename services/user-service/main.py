@@ -50,3 +50,27 @@ async def startup():
 @app.on_event("shutdown")
 async def shutdown():
     logger.info("User Service shutting down")
+
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint with dependency status"""
+    from shared.health import HealthCheckResponse, check_database, determine_overall_status
+    from datetime import datetime
+    from database import SessionLocal
+
+    dependencies = {}
+
+    db = SessionLocal()
+    try:
+        dependencies["database"] = check_database(db)
+    finally:
+        db.close()
+
+    status = determine_overall_status(dependencies)
+    health_response = HealthCheckResponse(status, datetime.utcnow(), dependencies)
+
+    status_code = 200 if status == "healthy" else 503 if status == "unhealthy" else 200
+
+    return {"status_code": status_code, **health_response.to_dict()}
+
