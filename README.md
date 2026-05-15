@@ -1,32 +1,50 @@
-## Monty Hall Problem Simulation
+# E-Commerce Microservices System
 
-# Description
+## Architecture
 
-This is a simulation of the Monty Hall Problem. The problem is a classic probability puzzle that involves a game show host who is trying to decide which of three doors to open. The host knows which of the doors has a prize behind it, and the contestant has to guess which door the host has opened. The host then reveals one of the doors that doesn't have the prize behind it, and the contestant has to decide which of the remaining two doors to choose.
+This is a production-grade microservices system demonstrating:
+- Service separation and communication
+- Async job processing with Celery
+- PostgreSQL database design
+- Redis caching strategy
+- Distributed systems concepts
 
-The simulation uses Python and the `random` module to simulate the game and determine the probability of winning. The simulation runs 10,000 times and calculates the probability of winning for each run. The final result is the average probability of winning across all 10,000 runs.
+## Services
 
-The simulation is implemented in the `monty_hall.py` file.
+1. **Order API** - Handles order creation and retrieval
+2. **User Service** - User authentication and profiles
+3. **Worker Service** - Background job processing
+4. **Notification Service** - Email/SMS notifications
 
-# Feautures
+## Tech Stack
 
-- The simulation runs 10,000 times and calculates the probability of winning for each run.
-- The final result is the average probability of winning across all 10,000 runs.
-- The simulation uses Python and the `random` module to simulate the game.
+- **Framework:** FastAPI (Python)
+- **Database:** PostgreSQL
+- **Cache/Queue:** Redis
+- **Job Queue:** Celery
+- **Containers:** Docker & Docker Compose
+- **Monitoring:** Prometheus, Grafana, Jaeger
 
-# Installations
+## Key Features
 
-- Python 3.x
-- `random` module
+- RESTful API design
+- JWT authentication
+- Async email/SMS notifications
+- Distributed tracing
+- Metrics monitoring
+- Error tracking with Sentry
 
-# Usage
+## Setup
 
-To run the simulation, simply execute the `monty_hall.py` file. The simulation will run and display the average probability of winning across all 10,000 runs.  
-
+```bash
+git clone ...
+docker-compose up
+# Visit http://localhost:8001/docs for API docs
 ```
-python monty_hall.py
-```
 
-# Testing
+## Trade-offs & Learning
 
-The simulation has been tested on Python 3.9.5 and the `random` module is included in the standard library. The simulation should work on any Python 3.x installation.
+- Why async? [Explanation]
+- Why separate services? [Explanation]
+- Database design decisions [Explanation]
+- Scaling considerations [Explanation]

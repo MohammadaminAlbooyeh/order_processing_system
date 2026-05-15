@@ -1,0 +1,89 @@
+# docker-compose.yml
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: ecommerce
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: orders
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # Redis (Cache + Message Queue)
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+  # Order API Service
+  order-api:
+    build: ./services/order-api
+    ports:
+      - "8001:8000"
+    environment:
+      DATABASE_URL: postgresql://ecommerce:password@postgres:5432/orders
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      - postgres
+      - redis
+    command: uvicorn main:app --host 0.0.0.0
+
+  # User Service
+  user-service:
+    build: ./services/user-service
+    ports:
+      - "8002:8000"
+    environment:
+      DATABASE_URL: postgresql://ecommerce:password@postgres:5432/orders
+    depends_on:
+      - postgres
+
+  # Worker Service (Celery)
+  worker:
+    build: ./services/worker-service
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379
+      DATABASE_URL: postgresql://ecommerce:password@postgres:5432/orders
+    depends_on:
+      - redis
+      - postgres
+    command: celery -A tasks worker --loglevel=info
+
+  # Notification Service
+  notification:
+    build: ./services/notification-service
+    ports:
+      - "8003:8000"
+    environment:
+      REDIS_URL: redis://redis:6379
+      SMTP_SERVER: smtp.gmail.com
+      SMTP_PORT: 587
+    depends_on:
+      - redis
+
+  # Monitoring: Prometheus
+  prometheus:
+    image: prom/prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+
+  # Monitoring: Grafana
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+
+  # Monitoring: Jaeger (Distributed Tracing)
+  jaeger:
+    image: jaegertracing/all-in-one
+    ports:
+      - "16686:16686"
