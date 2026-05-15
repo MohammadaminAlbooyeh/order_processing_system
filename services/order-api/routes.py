@@ -4,11 +4,11 @@ from sqlalchemy import desc
 from database import get_db
 from models import Order
 from schemas import OrderCreate, OrderResponse, OrderUpdate, OrderListResponse
+from auth import get_current_user
 import redis
 import json
 import os
 import sys
-import httpx
 from datetime import datetime
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../'))
@@ -20,42 +20,26 @@ from shared.settings import get_settings
 settings = get_settings()
 
 REDIS_URL = settings.redis_url
-USER_SERVICE_URL = settings.user_service_url
 cache = redis.Redis.from_url(REDIS_URL)
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 
 
-async def validate_user_exists(user_id: int) -> bool:
-    """Validate that user exists in User Service"""
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            response = await client.get(
-                f"{USER_SERVICE_URL}/users/{user_id}",
-                headers={"Accept": "application/json"}
-            )
-            exists = response.status_code in [200, 404] and response.status_code == 200
-            if exists:
-                logger.info(f"User {user_id} validated in User Service")
-            else:
-                logger.warning(f"User {user_id} not found in User Service")
-            return exists
-    except Exception as e:
-        logger.warning(f"Error validating user {user_id} with User Service: {e}")
-        return True
-
-
 @router.post("", response_model=OrderResponse, status_code=201)
-async def create_order(body: OrderCreate, db: Session = Depends(get_db)):
+async def create_order(
+    body: OrderCreate,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
+):
     try:
-        logger.info(f"Creating order for user {body.user_id}")
+        logger.info(f"Creating order for user {current_user.id}")
 
-        user_exists = await validate_user_exists(body.user_id)
-        if not user_exists:
-            logger.warning(f"Cannot create order - user {body.user_id} not found")
-            raise HTTPException(status_code=400, detail="User not found")
-
-        new_order = Order(**body.model_dump())
+        new_order = Order(
+            user_id=current_user.id,
+            destination=body.destination,
+            weight=body.weight,
+            items=body.items,
+        )
         db.add(new_order)
         db.commit()
         db.refresh(new_order)
@@ -76,19 +60,31 @@ async def create_order(body: OrderCreate, db: Session = Depends(get_db)):
 
 
 @router.get("/{order_id}", response_model=OrderResponse)
-async def get_order(order_id: int, db: Session = Depends(get_db)):
+async def get_order(
+    order_id: int,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
+):
     try:
-        logger.info(f"Fetching order {order_id}")
+        logger.info(f"Fetching order {order_id} for user {current_user.id}")
         cached = cache.get(f"order:{order_id}")
         if cached:
             logger.info(f"Cache hit for order {order_id}")
-            return json.loads(cached)
+            order_data = json.loads(cached)
+            if order_data["user_id"] != current_user.id:
+                logger.warning(f"User {current_user.id} attempted to access order {order_id} owned by user {order_data['user_id']}")
+                raise HTTPException(status_code=403, detail="Forbidden")
+            return order_data
 
         logger.info(f"Cache miss for order {order_id}, querying database")
         order = db.query(Order).filter(Order.id == order_id).first()
         if not order:
             logger.warning(f"Order {order_id} not found")
             raise HTTPException(status_code=404, detail="Order not found")
+
+        if order.user_id != current_user.id:
+            logger.warning(f"User {current_user.id} attempted to access order {order_id} owned by user {order.user_id}")
+            raise HTTPException(status_code=403, detail="Forbidden")
 
         cache.setex(f"order:{order_id}", 3600, json.dumps(OrderResponse.model_validate(order).model_dump()))
 
@@ -103,20 +99,17 @@ async def get_order(order_id: int, db: Session = Depends(get_db)):
 
 @router.get("", response_model=OrderListResponse)
 async def list_orders(
-    user_id: int | None = Query(None, description="Filter by user ID"),
     status: str | None = Query(None, description="Filter by status"),
     limit: int = Query(10, ge=1, le=100, description="Results per page"),
     offset: int = Query(0, ge=0, description="Number of results to skip"),
     db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
 ):
-    """List orders with pagination and filtering"""
+    """List orders for the authenticated user with optional status filtering"""
     try:
-        logger.info(f"Listing orders - user_id: {user_id}, status: {status}, limit: {limit}, offset: {offset}")
+        logger.info(f"Listing orders for user {current_user.id} - status: {status}, limit: {limit}, offset: {offset}")
 
-        query = db.query(Order)
-
-        if user_id:
-            query = query.filter(Order.user_id == user_id)
+        query = db.query(Order).filter(Order.user_id == current_user.id)
 
         if status:
             query = query.filter(Order.status == status)
@@ -125,7 +118,7 @@ async def list_orders(
 
         orders = query.order_by(desc(Order.created_at)).limit(limit).offset(offset).all()
 
-        logger.info(f"Retrieved {len(orders)} orders out of {total}")
+        logger.info(f"Retrieved {len(orders)} orders out of {total} for user {current_user.id}")
 
         return OrderListResponse(
             orders=[OrderResponse.model_validate(o) for o in orders],
@@ -143,15 +136,20 @@ async def update_order(
     order_id: int,
     body: OrderUpdate,
     db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
 ):
     """Update order status or destination"""
     try:
-        logger.info(f"Updating order {order_id}")
+        logger.info(f"Updating order {order_id} for user {current_user.id}")
 
         order = db.query(Order).filter(Order.id == order_id).first()
         if not order:
             logger.warning(f"Order {order_id} not found")
             raise HTTPException(status_code=404, detail="Order not found")
+
+        if order.user_id != current_user.id:
+            logger.warning(f"User {current_user.id} attempted to update order {order_id} owned by user {order.user_id}")
+            raise HTTPException(status_code=403, detail="Forbidden")
 
         if body.status:
             valid_transitions = {
@@ -192,15 +190,23 @@ async def update_order(
 
 
 @router.delete("/{order_id}")
-async def cancel_order(order_id: int, db: Session = Depends(get_db)):
+async def cancel_order(
+    order_id: int,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
+):
     """Cancel an order"""
     try:
-        logger.info(f"Cancelling order {order_id}")
+        logger.info(f"Cancelling order {order_id} for user {current_user.id}")
 
         order = db.query(Order).filter(Order.id == order_id).first()
         if not order:
             logger.warning(f"Order {order_id} not found")
             raise HTTPException(status_code=404, detail="Order not found")
+
+        if order.user_id != current_user.id:
+            logger.warning(f"User {current_user.id} attempted to cancel order {order_id} owned by user {order.user_id}")
+            raise HTTPException(status_code=403, detail="Forbidden")
 
         if order.status in ["shipped", "delivered", "cancelled"]:
             logger.warning(f"Cannot cancel order {order_id} with status {order.status}")

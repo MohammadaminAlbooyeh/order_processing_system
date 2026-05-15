@@ -110,5 +110,16 @@ services:
     ports:
       - "16686:16686"
 
+  # Frontend (React)
+  frontend:
+    build:
+      context: frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    depends_on:
+      - order-api
+      - user-service
+
 volumes:
   postgres_data:

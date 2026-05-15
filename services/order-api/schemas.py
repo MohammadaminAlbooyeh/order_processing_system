@@ -4,7 +4,6 @@ from datetime import datetime
 
 
 class OrderCreate(BaseModel):
-    user_id: int = Field(..., gt=0, description="User ID must be positive")
     destination: str = Field(..., min_length=5, max_length=500, description="Delivery destination")
     weight: float = Field(default=0.0, ge=0, description="Weight in kg")
     items: list[OrderItem] = Field(..., min_items=1, description="At least one item required")
