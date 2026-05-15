@@ -7,21 +7,48 @@ import redis
 import json
 import os
 import sys
+import httpx
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../'))
 from shared.logging_config import setup_logging
 
 logger = setup_logging(__name__)
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379")
+USER_SERVICE_URL = os.getenv("USER_SERVICE_URL", "http://user-service:8000")
 cache = redis.Redis.from_url(REDIS_URL)
 
 router = APIRouter(prefix="/orders", tags=["orders"])
+
+
+async def validate_user_exists(user_id: int) -> bool:
+    """Validate that user exists in User Service"""
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(
+                f"{USER_SERVICE_URL}/users/{user_id}",
+                headers={"Accept": "application/json"}
+            )
+            exists = response.status_code in [200, 404] and response.status_code == 200
+            if exists:
+                logger.info(f"User {user_id} validated in User Service")
+            else:
+                logger.warning(f"User {user_id} not found in User Service")
+            return exists
+    except Exception as e:
+        logger.warning(f"Error validating user {user_id} with User Service: {e}")
+        return True
 
 
 @router.post("", response_model=OrderResponse, status_code=201)
 async def create_order(body: OrderCreate, db: Session = Depends(get_db)):
     try:
         logger.info(f"Creating order for user {body.user_id}")
+
+        user_exists = await validate_user_exists(body.user_id)
+        if not user_exists:
+            logger.warning(f"Cannot create order - user {body.user_id} not found")
+            raise HTTPException(status_code=400, detail="User not found")
+
         new_order = Order(**body.model_dump())
         db.add(new_order)
         db.commit()
@@ -35,6 +62,8 @@ async def create_order(body: OrderCreate, db: Session = Depends(get_db)):
 
         logger.info(f"Order {new_order.id} created successfully")
         return OrderResponse.model_validate(new_order)
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error creating order: {e}", exc_info=True)
         raise

@@ -36,7 +36,15 @@ def calculate_shipping(destination: str, weight: float) -> float:
 
 
 def has_inventory(product_id: int, quantity: int) -> bool:
-    return True
+    inventory = {
+        10: 50,
+        11: 30,
+        12: 100,
+        13: 15,
+        14: 200,
+    }
+    available = inventory.get(product_id, 0)
+    return available >= quantity
 
 
 def send_notification(user_id: int, message: str):
@@ -51,7 +59,21 @@ def send_notification(user_id: int, message: str):
 
 
 def recommend_products(user_id: int, based_on: list) -> list:
-    return []
+    product_mapping = {
+        10: [11, 12],
+        11: [10, 13],
+        12: [10, 14],
+        13: [11, 14],
+        14: [12, 13],
+    }
+
+    recommendations = set()
+    for item in based_on:
+        product_id = item.get("product_id")
+        if product_id in product_mapping:
+            recommendations.update(product_mapping[product_id])
+
+    return list(recommendations)[:5]
 
 
 def update_order_status(order_id: int, status: str):
@@ -75,19 +97,69 @@ def publish_event(event_type: str, data: dict):
 
 
 def get_user_purchase_history(user_id: int) -> list:
-    return []
+    from sqlalchemy import text
+    db = SessionLocal()
+    try:
+        rows = db.execute(
+            text("SELECT items FROM orders WHERE user_id = :user_id ORDER BY created_at DESC LIMIT 10"),
+            {"user_id": user_id}
+        ).fetchall()
+        history = []
+        for row in rows:
+            items = row[0] or []
+            history.extend(items)
+        return history
+    except Exception as e:
+        logger.error(f"Error fetching purchase history for user {user_id}: {e}")
+        return []
+    finally:
+        db.close()
 
 
 class MockMLModel:
     def predict(self, history):
-        return []
+        if not history:
+            return [10, 11, 12]
+
+        product_counts = {}
+        for item in history:
+            product_id = item.get("product_id")
+            if product_id:
+                product_counts[product_id] = product_counts.get(product_id, 0) + 1
+
+        most_common = sorted(product_counts.items(), key=lambda x: x[1], reverse=True)[:3]
+        product_mapping = {
+            10: [11, 12],
+            11: [10, 13],
+            12: [10, 14],
+            13: [11, 14],
+            14: [12, 13],
+        }
+
+        recommendations = set()
+        for product_id, _ in most_common:
+            if product_id in product_mapping:
+                recommendations.update(product_mapping[product_id])
+
+        return list(recommendations)[:5]
 
 
 ml_model = MockMLModel()
 
 
 def save_recommendations(user_id: int, recommendations: list):
-    pass
+    import json
+    import redis as r
+    r_client = r.Redis.from_url(REDIS_URL)
+    try:
+        r_client.setex(
+            f"user_recommendations:{user_id}",
+            86400,
+            json.dumps(recommendations)
+        )
+        logger.info(f"Saved {len(recommendations)} recommendations for user {user_id}")
+    except Exception as e:
+        logger.error(f"Error saving recommendations for user {user_id}: {e}")
 
 
 @app.task(name="process_order")

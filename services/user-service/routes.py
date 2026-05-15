@@ -115,6 +115,23 @@ def get_current_user(
         raise HTTPException(status_code=401, detail="Invalid token")
 
 
+@router.get("/{user_id}", response_model=UserResponse)
+def get_user(user_id: int, db: Session = Depends(get_db)):
+    try:
+        logger.info(f"Fetching user: {user_id}")
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            logger.warning(f"User not found: {user_id}")
+            raise HTTPException(status_code=404, detail="User not found")
+        logger.info(f"User {user_id} retrieved successfully")
+        return UserResponse.model_validate(user)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving user {user_id}: {e}", exc_info=True)
+        raise
+
+
 @router.get("/me", response_model=UserResponse)
 def get_profile(current_user: User = Depends(get_current_user)):
     try:
