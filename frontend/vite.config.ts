@@ -10,11 +10,13 @@ export default defineConfig({
         target: 'http://localhost:8001',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/orders/, '/orders'),
+        ws: true,
       },
       '/api/users': {
         target: 'http://localhost:8002',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/users/, '/users'),
+        ws: true,
       },
     },
   },

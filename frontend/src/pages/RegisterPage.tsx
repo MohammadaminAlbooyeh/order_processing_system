@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { register } from '../api/users'
+import PasswordInput from '../components/PasswordInput'
 
 export default function RegisterPage() {
   const navigate = useNavigate()
@@ -43,8 +44,7 @@ export default function RegisterPage() {
         </label>
         <label>
           Password
-          <input
-            type="password"
+          <PasswordInput
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required

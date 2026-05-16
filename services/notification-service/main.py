@@ -10,8 +10,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../'))
 from shared.logging_config import setup_logging, setup_prometheus_metrics
 from shared.settings import get_settings
 from shared.tracing import setup_all_instrumentation
-from email import send_email
-from sms import send_sms
+from email_sender import send_email
+from sms_sender import send_sms
 
 logger = setup_logging(__name__)
 settings = get_settings()

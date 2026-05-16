@@ -14,4 +14,4 @@ class Order(Base):
     weight = Column(Float, default=0.0)
     items = Column(JSONB, default=list)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    updated_at = Column(DateTime(timezone=True), nullable=True, onupdate=func.now())

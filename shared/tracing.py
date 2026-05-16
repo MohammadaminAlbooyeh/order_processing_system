@@ -4,11 +4,6 @@ Distributed tracing configuration using OpenTelemetry and Jaeger
 from opentelemetry import trace, metrics
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.exporter.jaeger.thrift import JaegerExporter
-from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
-from opentelemetry.instrumentation.requests import RequestsInstrumentor
-from opentelemetry.instrumentation.redis import RedisInstrumentor
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 import logging
 
@@ -16,15 +11,8 @@ logger = logging.getLogger(__name__)
 
 
 def setup_tracing(service_name: str, jaeger_host: str = "jaeger", jaeger_port: int = 6831):
-    """
-    Set up OpenTelemetry tracing with Jaeger exporter.
-
-    Args:
-        service_name: Name of the service for tracing
-        jaeger_host: Jaeger collector host
-        jaeger_port: Jaeger collector UDP port
-    """
     try:
+        from opentelemetry.exporter.jaeger.thrift import JaegerExporter
         jaeger_exporter = JaegerExporter(
             agent_host_name=jaeger_host,
             agent_port=jaeger_port,
@@ -47,8 +35,8 @@ def setup_tracing(service_name: str, jaeger_host: str = "jaeger", jaeger_port: i
 
 
 def instrument_fastapi(app, service_name: str = "fastapi-service"):
-    """Instrument FastAPI application with OpenTelemetry"""
     try:
+        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
         FastAPIInstrumentor.instrument_app(app, service_name=service_name)
         logger.info("FastAPI instrumented with OpenTelemetry")
     except Exception as e:
@@ -56,8 +44,8 @@ def instrument_fastapi(app, service_name: str = "fastapi-service"):
 
 
 def instrument_sqlalchemy(engine):
-    """Instrument SQLAlchemy engine with OpenTelemetry"""
     try:
+        from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
         SQLAlchemyInstrumentor().instrument(engine=engine)
         logger.info("SQLAlchemy instrumented with OpenTelemetry")
     except Exception as e:
@@ -65,8 +53,8 @@ def instrument_sqlalchemy(engine):
 
 
 def instrument_requests():
-    """Instrument requests library with OpenTelemetry"""
     try:
+        from opentelemetry.instrumentation.requests import RequestsInstrumentor
         RequestsInstrumentor().instrument()
         logger.info("Requests library instrumented with OpenTelemetry")
     except Exception as e:
@@ -74,8 +62,8 @@ def instrument_requests():
 
 
 def instrument_redis():
-    """Instrument Redis client with OpenTelemetry"""
     try:
+        from opentelemetry.instrumentation.redis import RedisInstrumentor
         RedisInstrumentor().instrument()
         logger.info("Redis instrumented with OpenTelemetry")
     except Exception as e:

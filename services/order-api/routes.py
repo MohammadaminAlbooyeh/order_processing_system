@@ -38,7 +38,7 @@ async def create_order(
             user_id=current_user.id,
             destination=body.destination,
             weight=body.weight,
-            items=body.items,
+            items=[item.model_dump() for item in body.items],
         )
         db.add(new_order)
         db.commit()
