@@ -53,9 +53,10 @@ other services' Dockerfiles):
 docker build -f services/notification-service-java/Dockerfile -t notification-service-java .
 ```
 
-## Not yet wired into docker-compose.yml
+## Wired into docker-compose.yml
 
-This service currently runs standalone. To swap it in for the Python
-`notification` service in `docker-compose.yml`, point the `notification`
-service's `dockerfile:` at `services/notification-service-java/Dockerfile`
-and keep the same environment variables.
+This service is now selected by the default `notification` entry in
+`docker-compose.yml`. It keeps the same environment variables as the Python
+service, so the rest of the stack does not need to change.
+
+The remaining Python backend services are `order-api` and `user-service`.

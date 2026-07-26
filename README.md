@@ -18,10 +18,10 @@ This is a production-grade microservices system demonstrating:
 
 ## Tech Stack
 
-- **Framework:** FastAPI (Python)
+- **Framework:** FastAPI (Python) for the remaining Python services, plus Spring Boot (Java) for the rewritten worker and notification services
 - **Database:** PostgreSQL
 - **Cache/Queue:** Redis
-- **Job Queue:** Celery
+- **Job Queue:** Redis lists for service-to-service events, plus Celery in the legacy Python worker
 - **Containers:** Docker & Docker Compose
 - **Monitoring:** Prometheus, Grafana, Jaeger
 
@@ -41,6 +41,15 @@ git clone ...
 docker-compose up
 # Visit http://localhost:8001/docs for API docs
 ```
+
+## Migration Status
+
+The Java rewrite is in progress:
+
+- `services/worker-service-java` replaces the Python worker logic in Java.
+- `services/notification-service-java` replaces the Python notification service in Java.
+- `services/order-api` and `services/user-service` are still Python and are the next services to port.
+- `docker-compose.yml` now points the worker and notification services at the Java Dockerfiles, so those rewrites are active in the default stack.
 
 ## Trade-offs & Learning
 

@@ -54,11 +54,13 @@ services:
       - postgres
       - jaeger
 
-  # Worker Service (Celery)
+  # Worker Service (Java)
   worker:
     build:
       context: .
-      dockerfile: services/worker-service/Dockerfile
+      dockerfile: services/worker-service-java/Dockerfile
+    ports:
+      - "8004:8000"
     environment:
       CELERY_BROKER_URL: redis://redis:6379
       DATABASE_URL: postgresql://ecommerce:password@postgres:5432/orders
@@ -70,11 +72,11 @@ services:
       - postgres
       - jaeger
 
-  # Notification Service
+  # Notification Service (Java)
   notification:
     build:
       context: .
-      dockerfile: services/notification-service/Dockerfile
+      dockerfile: services/notification-service-java/Dockerfile
     ports:
       - "8003:8000"
     environment:

@@ -65,13 +65,10 @@ Build the Docker image (build context must be the repo root):
 docker build -f services/worker-service-java/Dockerfile -t worker-service-java .
 ```
 
-## Not yet wired into docker-compose.yml
+## Wired into docker-compose.yml
 
-This service currently runs standalone, same as `notification-service-java`.
-To swap it in for the Python `worker` service in `docker-compose.yml`, point
-the `worker` service's `dockerfile:` at
-`services/worker-service-java/Dockerfile`, drop the `celery`/`--loglevel`
-command override, and keep the same environment variables. Note the Python
-`worker`'s container has no exposed port; this Java version listens on 8000
-for `/health` and `/actuator/prometheus`, so you'll want to add a `ports:`
-mapping if you wire it in.
+This service is now selected by the default `worker` entry in
+`docker-compose.yml`. The Java service listens on port 8000 for `/health`
+and `/actuator/prometheus`, so the compose file maps it to host port 8004.
+
+The remaining Python backend services are `order-api` and `user-service`.
