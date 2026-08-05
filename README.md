@@ -44,12 +44,14 @@ docker-compose up
 
 ## Migration Status
 
-The Java rewrite is in progress:
+The Java rewrite is complete:
 
 - `services/worker-service-java` replaces the Python worker logic in Java.
 - `services/notification-service-java` replaces the Python notification service in Java.
-- `services/order-api` and `services/user-service` are still Python and are the next services to port.
-- `docker-compose.yml` now points the worker and notification services at the Java Dockerfiles, so those rewrites are active in the default stack.
+- `services/order-api-java` replaces the Python order API in Java.
+- `services/user-service-java` replaces the Python user service in Java.
+- `docker-compose.yml` now points all four backend services at their Java Dockerfiles.
+- Legacy Python service directories have been removed.
 
 ## Trade-offs & Learning
 

@@ -20,16 +20,17 @@ services:
     ports:
       - "6379:6379"
 
-  # Order API Service
+  # Order API Service (Java)
   order-api:
     build:
       context: .
-      dockerfile: services/order-api/Dockerfile
+      dockerfile: services/order-api-java/Dockerfile
     ports:
       - "8001:8000"
     environment:
       DATABASE_URL: postgresql://ecommerce:password@postgres:5432/orders
       REDIS_URL: redis://redis:6379
+      SECRET_KEY: change-me-in-production
       JAEGER_ENABLED: "true"
       JAEGER_HOST: jaeger
       JAEGER_PORT: "6831"
@@ -38,15 +39,16 @@ services:
       - redis
       - jaeger
 
-  # User Service
+  # User Service (Java)
   user-service:
     build:
       context: .
-      dockerfile: services/user-service/Dockerfile
+      dockerfile: services/user-service-java/Dockerfile
     ports:
       - "8002:8000"
     environment:
       DATABASE_URL: postgresql://ecommerce:password@postgres:5432/orders
+      SECRET_KEY: change-me-in-production
       JAEGER_ENABLED: "true"
       JAEGER_HOST: jaeger
       JAEGER_PORT: "6831"
