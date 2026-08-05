@@ -32,7 +32,7 @@ public class UserController {
     @GetMapping("/me")
     public ResponseEntity<?> getProfile() {
         Long userId = (Long) org.springframework.web.context.request.RequestContextHolder.currentRequestAttributes()
-                .getAttribute("userId", org.springframework.web.context.request.RequestContextHolder.SCOPE_REQUEST);
+                .getAttribute("userId", org.springframework.web.context.request.RequestAttributes.SCOPE_REQUEST);
         if (userId == null) {
             return ResponseEntity.status(org.springframework.http.HttpStatus.UNAUTHORIZED)
                     .body(Map.of("detail", "Invalid token"));
@@ -48,7 +48,7 @@ public class UserController {
     @PatchMapping("/me")
     public ResponseEntity<?> updateProfile(@Valid @RequestBody UpdateProfileRequest body) {
         Long userId = (Long) org.springframework.web.context.request.RequestContextHolder.currentRequestAttributes()
-                .getAttribute("userId", org.springframework.web.context.request.RequestContextHolder.SCOPE_REQUEST);
+                .getAttribute("userId", org.springframework.web.context.request.RequestAttributes.SCOPE_REQUEST);
         if (userId == null) {
             return ResponseEntity.status(org.springframework.http.HttpStatus.UNAUTHORIZED)
                     .body(Map.of("detail", "Invalid token"));

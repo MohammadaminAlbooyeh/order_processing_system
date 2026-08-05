@@ -185,7 +185,7 @@ public class OrderService {
         response.setStatus(order.getStatus());
         response.setDestination(order.getDestination());
         response.setWeight(order.getWeight());
-        response.setItems(items.stream().map(item -> Map.of(
+        response.setItems(items.stream().map(item -> Map.<String, Object>of(
                 "product_id", item.getProductId(),
                 "quantity", item.getQuantity()
         )).toList());

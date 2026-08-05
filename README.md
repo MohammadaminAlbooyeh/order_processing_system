@@ -3,59 +3,95 @@
 ## Architecture
 
 This is a production-grade microservices system demonstrating:
+
 - Service separation and communication
-- Async job processing with Celery
+- Async job processing via Redis-backed event queues
 - PostgreSQL database design
 - Redis caching strategy
-- Distributed systems concepts
+- Distributed systems concepts (tracing, metrics, health checks)
 
 ## Services
 
-1. **Order API** - Handles order creation and retrieval
-2. **User Service** - User authentication and profiles
-3. **Worker Service** - Background job processing
-4. **Notification Service** - Email/SMS notifications
+All backend services are Java/Spring Boot applications running on port `8000`.
+
+| Service | Container name | Port (host) | Responsibility |
+|---------|----------------|-------------|----------------|
+| Order API | `order-api` | 8001 | Order creation, retrieval, caching, JWT auth |
+| User Service | `user-service` | 8002 | Registration, login, JWT issuance, profile management |
+| Notification Service | `notification` | 8003 | Email/SMS notifications via Redis events |
+| Worker Service | `worker` | 8004 | Background processing of order events |
+
+Supporting infrastructure: PostgreSQL, Redis, Prometheus, Grafana, Jaeger, and a React frontend (`frontend`).
 
 ## Tech Stack
 
-- **Framework:** FastAPI (Python) for the remaining Python services, plus Spring Boot (Java) for the rewritten worker and notification services
-- **Database:** PostgreSQL
-- **Cache/Queue:** Redis
-- **Job Queue:** Redis lists for service-to-service events, plus Celery in the legacy Python worker
+- **Backend framework:** Spring Boot 3.5 (Java 17), Spring Security, Spring Data JPA
+- **Frontend:** React
+- **Database:** PostgreSQL 15
+- **Cache / Message queue:** Redis 7
+- **Authentication:** JWT (jjwt 0.12)
 - **Containers:** Docker & Docker Compose
-- **Monitoring:** Prometheus, Grafana, Jaeger
+- **Monitoring:** Prometheus, Grafana
+- **Distributed tracing:** Jaeger
+- **Metrics:** Micrometer + Prometheus registry, Spring Boot Actuator
 
 ## Key Features
 
 - RESTful API design
-- JWT authentication
-- Async email/SMS notifications
-- Distributed tracing
-- Metrics monitoring
-- Error tracking with Sentry
+- JWT authentication and authorization
+- Async email/SMS notifications through Redis event listeners
+- Distributed tracing with Jaeger
+- Metrics monitoring via Prometheus/Grafana
+- Health checks and Actuator endpoints
+- Caching of order reads in Redis
 
 ## Setup
 
 ```bash
-git clone ...
-docker-compose up
-# Visit http://localhost:8001/docs for API docs
+docker-compose up --build
 ```
 
-## Migration Status
+Host ports:
 
-The Java rewrite is complete:
+- Order API: http://localhost:8001
+- User Service: http://localhost:8002
+- Notification Service: http://localhost:8003
+- Worker Service: http://localhost:8004
+- Prometheus: http://localhost:9090
+- Grafana: http://localhost:3001 (admin / admin)
+- Jaeger UI: http://localhost:16686
+- Frontend: http://localhost:3000
 
-- `services/worker-service-java` replaces the Python worker logic in Java.
-- `services/notification-service-java` replaces the Python notification service in Java.
-- `services/order-api-java` replaces the Python order API in Java.
-- `services/user-service-java` replaces the Python user service in Java.
-- `docker-compose.yml` now points all four backend services at their Java Dockerfiles.
-- Legacy Python service directories have been removed.
+### Seeding an admin user
 
-## Trade-offs & Learning
+```bash
+python seed_admin.py
+```
 
-- Why async? [Explanation]
-- Why separate services? [Explanation]
-- Database design decisions [Explanation]
-- Scaling considerations [Explanation]
+Creates `admin@example.com` / `Admin@123` via the user-service register endpoint.
+
+## Service Communication
+
+- Order API publishes order-created events to Redis on order creation.
+- Worker and Notification services listen on those Redis lists/streams and process them asynchronously.
+- Order API caches order responses in Redis to reduce database load.
+
+## Monitoring
+
+- Each service exposes `management.endpoints.web.exposure.include=health,prometheus`.
+- Metrics are scraped from `/actuator/prometheus` (Prometheus job targets in `monitoring/prometheus.yml`).
+- Traces are exported to Jaeger via OpenTelemetry.
+
+## Architecture Notes
+
+- `docker-compose.yml` wires all four backend services to their Java Dockerfiles.
+- Each service builds from `services/<name>-java/Dockerfile` via Maven.
+- Environment variables (e.g. `DATABASE_URL`, `REDIS_URL`, `SECRET_KEY`) configure connection details.
+
+## Trade-offs & Decisions
+
+- **Why async?** Order creation and notifications are decoupled through Redis so slow operations (email/SMS) never block the API request path, improving latency and resilience.
+- **Why separate services?** Each service can be scaled, deployed, and failure-isolated independently; the codebase maps cleanly to team/ownership boundaries.
+- **Database design decisions:** Orders and users live in a shared PostgreSQL database with separate access layers per service; order items are stored as JSONB and parsed on read, keeping a single-row-per-order model simple.
+- **Scaling considerations:** Services are horizontally scalable behind a load balancer. Redis serves as both cache and message queue; for high throughput, swap Redis streams for a dedicated broker (e.g. Kafka) and add connection pooling.
+- **Why Java/Spring Boot?** Replaced the original FastAPI/Celery services for stronger typing, a mature ecosystem, and built-in Actuator/micrometer observability.

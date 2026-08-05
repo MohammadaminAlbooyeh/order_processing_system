@@ -115,7 +115,7 @@ public class OrderController {
 
     private Long getUserId() {
         Object userId = org.springframework.web.context.request.RequestContextHolder.currentRequestAttributes()
-                .getAttribute("userId", org.springframework.web.context.request.RequestContextHolder.SCOPE_REQUEST);
+                .getAttribute("userId", org.springframework.web.context.request.RequestAttributes.SCOPE_REQUEST);
         if (userId instanceof Long l) {
             return l;
         }

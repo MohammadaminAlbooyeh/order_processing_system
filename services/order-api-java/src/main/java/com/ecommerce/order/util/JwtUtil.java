@@ -18,11 +18,11 @@ public class JwtUtil {
     public Long extractUserId(String token) {
         try {
             SecretKey key = Keys.hmacShaKeyFor(Base64.getDecoder().decode(SECRET_KEY));
-            Claims claims = Jwts.parserBuilder()
-                    .setSigningKey(key)
+            Claims claims = Jwts.parser()
+                    .verifyWith(key)
                     .build()
-                    .parseClaimsJws(token)
-                    .getBody();
+                    .parseSignedClaims(token)
+                    .getPayload();
             String sub = claims.getSubject();
             if (sub != null) {
                 return Long.parseLong(sub);

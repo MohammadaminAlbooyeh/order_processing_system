@@ -1,4 +1,4 @@
-package com.ecommerce.order.model;
+package com.ecommerce.order.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 

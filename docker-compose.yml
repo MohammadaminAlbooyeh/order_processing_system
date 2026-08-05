@@ -31,9 +31,7 @@ services:
       DATABASE_URL: postgresql://ecommerce:password@postgres:5432/orders
       REDIS_URL: redis://redis:6379
       SECRET_KEY: change-me-in-production
-      JAEGER_ENABLED: "true"
-      JAEGER_HOST: jaeger
-      JAEGER_PORT: "6831"
+      OTLP_ENDPOINT: http://jaeger:4318/v1/traces
     depends_on:
       - postgres
       - redis
@@ -49,9 +47,7 @@ services:
     environment:
       DATABASE_URL: postgresql://ecommerce:password@postgres:5432/orders
       SECRET_KEY: change-me-in-production
-      JAEGER_ENABLED: "true"
-      JAEGER_HOST: jaeger
-      JAEGER_PORT: "6831"
+      OTLP_ENDPOINT: http://jaeger:4318/v1/traces
     depends_on:
       - postgres
       - jaeger
@@ -66,9 +62,7 @@ services:
     environment:
       CELERY_BROKER_URL: redis://redis:6379
       DATABASE_URL: postgresql://ecommerce:password@postgres:5432/orders
-      JAEGER_ENABLED: "true"
-      JAEGER_HOST: jaeger
-      JAEGER_PORT: "6831"
+      OTLP_ENDPOINT: http://jaeger:4318/v1/traces
     depends_on:
       - redis
       - postgres
@@ -85,9 +79,7 @@ services:
       REDIS_URL: redis://redis:6379
       SMTP_SERVER: smtp.gmail.com
       SMTP_PORT: 587
-      JAEGER_ENABLED: "true"
-      JAEGER_HOST: jaeger
-      JAEGER_PORT: "6831"
+      OTLP_ENDPOINT: http://jaeger:4318/v1/traces
     depends_on:
       - redis
       - jaeger
@@ -104,15 +96,18 @@ services:
   grafana:
     image: grafana/grafana
     ports:
-      - "3000:3000"
+      - "3001:3000"
     environment:
       GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
 
   # Monitoring: Jaeger (Distributed Tracing)
   jaeger:
     image: jaegertracing/all-in-one
     ports:
       - "16686:16686"
+      - "4318:4318"
 
   # Frontend (React)
   frontend:
