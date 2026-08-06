@@ -3,7 +3,9 @@
 ## Prerequisites
 
 - Docker & Docker Compose
-- Python 3.11+ (for local development)
+- Java 17+ and Maven (for local development of the backend services)
+- Node.js 20+ (for local development of the frontend)
+- Python 3.11+ (only needed for `seed_admin.py`, a small script that calls the user-service REST API)
 - PostgreSQL client tools (optional, for debugging)
 
 ## Local Development Setup
@@ -20,38 +22,29 @@ Update credentials as needed for development.
 
 ### 2. Install Dependencies
 
+Each backend service is an independent Maven project; dependencies are resolved automatically on build:
+
 ```bash
-pip install -r requirements.txt
+cd services/order-api-java && mvn -q dependency:go-offline
+cd ../user-service-java && mvn -q dependency:go-offline
+cd ../notification-service-java && mvn -q dependency:go-offline
+cd ../worker-service-java && mvn -q dependency:go-offline
 ```
 
-Install service-specific dependencies:
+Install frontend dependencies:
 
 ```bash
-cd services/order-api && pip install -r requirements.txt
-cd ../user-service && pip install -r requirements.txt
-cd ../notification-service && pip install -r requirements.txt
-cd ../worker-service && pip install -r requirements.txt
+cd frontend && npm install
 ```
 
 ### 3. Database Migrations
 
-Before starting services, run database migrations:
-
-```bash
-# Apply all pending migrations
-python migrate.py upgrade
-
-# Check migration status
-python migrate.py current
-
-# View migration history
-python migrate.py history
-```
+Schema migrations are managed by Flyway and run automatically on startup — see [Migration failures](#migration-failures) below for details. No manual migration step is required before starting services.
 
 ### 4. Start Services with Docker Compose
 
 ```bash
-docker-compose up -d
+docker-compose up -d --build
 ```
 
 This starts:
@@ -60,10 +53,11 @@ This starts:
 - Order API (port 8001)
 - User Service (port 8002)
 - Notification Service (port 8003)
-- Worker Service (background)
+- Worker Service (port 8004)
 - Prometheus (port 9090)
-- Grafana (port 3000)
-- Jaeger (port 16686)
+- Grafana (port 3001)
+- Jaeger UI (port 16686)
+- Frontend (port 3000)
 
 ### 5. Health Checks
 
@@ -79,25 +73,18 @@ curl http://localhost:8002/health
 # Notification Service health
 curl http://localhost:8003/health
 
-# Prometheus metrics
-curl http://localhost:8001/metrics
+# Worker Service health
+curl http://localhost:8004/health
+
+# Prometheus-formatted metrics (any service)
+curl http://localhost:8001/actuator/prometheus
 ```
 
 ## Production Deployment
 
 ### Database Migrations
 
-Always run migrations before deploying new code:
-
-```bash
-python migrate.py upgrade
-```
-
-Verify the migration was successful:
-
-```bash
-python migrate.py current
-```
+Migrations run automatically when `order-api` or `user-service` starts (see [Migration failures](#migration-failures)). No separate migration step is needed as part of a deploy — just make sure the new migration files are included in the image you're rolling out.
 
 ### Environment Variables
 
@@ -106,7 +93,7 @@ Set the following environment variables in production:
 ```
 DATABASE_URL=postgresql://user:password@host:5432/dbname
 REDIS_URL=redis://redis-host:6379
-CELERY_BROKER_URL=redis://redis-host:6379
+CELERY_BROKER_URL=redis://redis-host:6379   # Redis URL used by worker-service (name kept from the original Celery-based design)
 SECRET_KEY=<strong-random-secret>
 LOG_LEVEL=INFO
 SMTP_SERVER=smtp.gmail.com
@@ -135,9 +122,9 @@ docker-compose -f docker-compose.yml up -d
 
 ### Monitoring
 
-- **Prometheus**: Access at http://prometheus-host:9090
-- **Grafana**: Access at http://grafana-host:3000 (admin/admin)
-- **Jaeger**: Access at http://jaeger-host:16686 for distributed traces
+- **Prometheus**: Access at http://prometheus-host:9090 — scrapes `/actuator/prometheus` on each service every 15s (config: `monitoring/prometheus.yml`)
+- **Grafana**: Access at http://grafana-host:3001 (admin/admin) — the Prometheus datasource and the "Order Processing System" dashboard are auto-provisioned from `monitoring/grafana/provisioning/` and `monitoring/grafana/dashboards/`
+- **Jaeger**: Access at http://jaeger-host:16686 for distributed traces — services export via OTLP to `OTLP_ENDPOINT` (defaults to `http://jaeger:4318/v1/traces`)
 
 ### Logging
 
@@ -153,19 +140,15 @@ Integrate with ELK Stack, Datadog, New Relic, or similar log aggregators.
 
 ### Database Rollback
 
-If a migration fails in production:
+Flyway does not support automatic downgrades. If a migration needs to be reverted in production, write a new forward-only migration (e.g. `V3__revert_xyz.sql`) that undoes the change, rather than trying to roll back the schema history. Check the current state first:
 
 ```bash
-# Check current revision
-python migrate.py current
-
-# Rollback to previous revision
-python migrate.py downgrade -1
+docker-compose exec postgres psql -U ecommerce -d orders -c "SELECT version, description, success FROM flyway_schema_history ORDER BY installed_rank DESC LIMIT 5"
 ```
 
 ### Service Rollback
 
-Use your deployment platform's rollback mechanism to revert to previous Docker image versions.
+Use your deployment platform's rollback mechanism to revert to previous Docker image versions. Since schema changes are forward-only, make sure any migration shipped with a release is backward-compatible with the previous service version until the rollback window closes.
 
 ## Troubleshooting
 
@@ -202,7 +185,7 @@ To add a new migration, create a new `V{n}__description.sql` file in **both** `s
 ## Performance Optimization
 
 - Enable query logging on PostgreSQL for slow query analysis
-- Monitor Prometheus metrics for high latency endpoints
-- Use Redis caching effectively (Order API caches for 1 hour)
-- Monitor worker queue depth with Celery Flower
-- Set appropriate database connection pool sizes
+- Monitor Prometheus metrics for high latency endpoints (see the Grafana "HTTP Request Latency" panel)
+- Use Redis caching effectively (Order API caches order reads)
+- Monitor the `notification_queue` and `order_queue` Redis list lengths to catch a backed-up worker or notification service
+- Set appropriate database connection pool sizes (HikariCP, configured per-service)

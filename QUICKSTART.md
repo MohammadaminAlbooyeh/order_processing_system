@@ -2,7 +2,7 @@
 
 ## Prerequisites
 - Docker & Docker Compose installed
-- Port 3000, 8001, 8002 available
+- Ports 3000, 3001, 8001-8004, 9090, 16686 available
 
 ## Start the Application
 
@@ -16,9 +16,11 @@ This starts:
 - Redis (localhost:6379)
 - Order API (localhost:8001)
 - User Service (localhost:8002)
+- Notification Service (localhost:8003)
+- Worker Service (localhost:8004)
 - Frontend (localhost:3000)
 - Prometheus (localhost:9090)
-- Grafana (localhost:3000)
+- Grafana (localhost:3001)
 - Jaeger (localhost:16686)
 
 ### 2. Create Admin Test User (in another terminal)
@@ -62,21 +64,14 @@ Password: Admin@123
 
 ## API Documentation
 
-Once services are running:
-- **Order API docs**: http://localhost:8001/docs
-- **User Service docs**: http://localhost:8002/docs
+See [API.md](API.md) for endpoint details. Once services are running:
 - **Prometheus**: http://localhost:9090
-- **Grafana**: http://localhost:3000 (admin/admin)
+- **Grafana**: http://localhost:3001 (admin/admin)
 - **Jaeger**: http://localhost:16686
 
 ---
 
 ## Troubleshooting
-
-### Port 3000 already in use?
-Grafana also uses 3000. Either:
-- Stop Grafana: `docker-compose stop grafana`
-- Or change frontend port in docker-compose.yml
 
 ### Database connection error?
 Wait for PostgreSQL to be ready (takes ~10 seconds)
