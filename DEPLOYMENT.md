@@ -189,17 +189,15 @@ docker-compose exec postgres psql -U ecommerce -d orders -c "SELECT 1"
 
 ### Migration failures
 
-Review migration files in `alembic/versions/`:
+Schema migrations are managed by Flyway and run automatically on startup of `order-api` and `user-service` (both point at the same `orders` database, so either one may apply a pending migration first; Flyway's schema history table coordinates this safely). Migration scripts live in each service's `src/main/resources/db/migration/`.
+
+Review applied migrations:
 
 ```bash
-python migrate.py history
+docker-compose exec postgres psql -U ecommerce -d orders -c "SELECT version, description, success, installed_on FROM flyway_schema_history"
 ```
 
-Check database state:
-
-```bash
-docker-compose exec postgres psql -U ecommerce -d orders -c "SELECT version, installed_on FROM alembic_version"
-```
+To add a new migration, create a new `V{n}__description.sql` file in **both** `services/order-api-java/src/main/resources/db/migration/` and `services/user-service-java/src/main/resources/db/migration/` (kept identical since both services share the database).
 
 ## Performance Optimization
 

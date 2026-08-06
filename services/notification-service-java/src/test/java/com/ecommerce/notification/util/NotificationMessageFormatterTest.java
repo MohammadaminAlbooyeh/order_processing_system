@@ -2,6 +2,7 @@ package com.ecommerce.notification.util;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -11,33 +12,57 @@ class NotificationMessageFormatterTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
-    void formatRecommendations_returnsPlaceholder_whenEmpty() throws Exception {
-        JsonNode empty = objectMapper.readTree("[]");
-        assertThat(NotificationMessageFormatter.formatRecommendations(empty)).isEqualTo("No recommendations yet.");
+    void formatRecommendations_nullNode_returnsFallbackMessage() {
+        assertThat(NotificationMessageFormatter.formatRecommendations(null))
+                .isEqualTo("No recommendations yet.");
     }
 
     @Test
-    void formatRecommendations_returnsPlaceholder_whenMissing() {
-        assertThat(NotificationMessageFormatter.formatRecommendations(null)).isEqualTo("No recommendations yet.");
+    void formatRecommendations_emptyArray_returnsFallbackMessage() {
+        ArrayNode empty = objectMapper.createArrayNode();
+
+        assertThat(NotificationMessageFormatter.formatRecommendations(empty))
+                .isEqualTo("No recommendations yet.");
     }
 
     @Test
-    void formatRecommendations_listsEachItem() throws Exception {
-        JsonNode recommendations = objectMapper.readTree("[11, 12, 14]");
-        assertThat(NotificationMessageFormatter.formatRecommendations(recommendations))
-                .isEqualTo("- 11\n- 12\n- 14");
+    void formatRecommendations_nonArrayNode_returnsFallbackMessage() {
+        JsonNode textNode = objectMapper.getNodeFactory().textNode("not-an-array");
+
+        assertThat(NotificationMessageFormatter.formatRecommendations(textNode))
+                .isEqualTo("No recommendations yet.");
+    }
+
+    @Test
+    void formatRecommendations_withItems_joinsAsBulletList() {
+        ArrayNode items = objectMapper.createArrayNode();
+        items.add("Product A");
+        items.add("Product B");
+
+        assertThat(NotificationMessageFormatter.formatRecommendations(items))
+                .isEqualTo("- Product A\n- Product B");
     }
 
     @Test
     void buildOrderConfirmationSubject_includesOrderId() {
-        assertThat(NotificationMessageFormatter.buildOrderConfirmationSubject(42L))
-                .isEqualTo("Order #42 Confirmed");
+        assertThat(NotificationMessageFormatter.buildOrderConfirmationSubject(123L))
+                .isEqualTo("Order #123 Confirmed");
     }
 
     @Test
-    void buildTrackingSmsBody_includesTrackingLink() {
-        assertThat(NotificationMessageFormatter.buildTrackingSmsBody(42L))
-                .contains("ecommerce.com/track/42")
-                .startsWith("Order 42 confirmed!");
+    void buildOrderConfirmationBody_includesOrderIdAndRecommendations() {
+        ArrayNode items = objectMapper.createArrayNode();
+        items.add("Product A");
+
+        String body = NotificationMessageFormatter.buildOrderConfirmationBody(123L, items);
+
+        assertThat(body).contains("Order ID: 123");
+        assertThat(body).contains("- Product A");
+    }
+
+    @Test
+    void buildTrackingSmsBody_includesOrderIdAndTrackingLink() {
+        assertThat(NotificationMessageFormatter.buildTrackingSmsBody(123L))
+                .isEqualTo("Order 123 confirmed! Track at: ecommerce.com/track/123");
     }
 }
