@@ -22,6 +22,7 @@ public class NotificationEventListener {
 
     private static final Logger logger = LoggerFactory.getLogger(NotificationEventListener.class);
     private static final String QUEUE_KEY = "notification_queue";
+    private static final String DEAD_LETTER_KEY = "notification_queue_dead";
 
     private final StringRedisTemplate redisTemplate;
     private final EmailSender emailSender;
@@ -52,6 +53,7 @@ public class NotificationEventListener {
             }
         } catch (Exception e) {
             logger.error("Error processing notification event: {}", e.getMessage(), e);
+            redisTemplate.opsForList().rightPush(DEAD_LETTER_KEY, rawEvent);
         }
     }
 

@@ -19,6 +19,7 @@ public class OrderEventListener {
 
     private static final Logger logger = LoggerFactory.getLogger(OrderEventListener.class);
     private static final String QUEUE_KEY = "order_queue";
+    private static final String DEAD_LETTER_KEY = "order_queue_dead";
     private static final String ORDER_CREATED_EVENT = "ORDER_CREATED";
 
     private final StringRedisTemplate redisTemplate;
@@ -48,6 +49,7 @@ public class OrderEventListener {
             }
         } catch (Exception e) {
             logger.error("Error processing order event: {}", e.getMessage(), e);
+            redisTemplate.opsForList().rightPush(DEAD_LETTER_KEY, rawEvent);
         }
     }
 }

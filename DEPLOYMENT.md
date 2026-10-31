@@ -95,6 +95,7 @@ DATABASE_URL=postgresql://user:password@host:5432/dbname
 REDIS_URL=redis://redis-host:6379
 CELERY_BROKER_URL=redis://redis-host:6379   # Redis URL used by worker-service (name kept from the original Celery-based design)
 SECRET_KEY=<strong-random-secret>
+APP_ENV=prod   # order-api and user-service refuse to start with the default dev SECRET_KEY when this is set to "prod"
 LOG_LEVEL=INFO
 SMTP_SERVER=smtp.gmail.com
 SMTP_PORT=587

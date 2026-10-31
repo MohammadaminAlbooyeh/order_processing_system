@@ -23,6 +23,53 @@ All backend services are Java/Spring Boot applications running on port `8000`.
 
 Supporting infrastructure: PostgreSQL, Redis, Prometheus, Grafana, Jaeger, and a React frontend (`frontend`).
 
+## System Architecture
+
+```text
+                                +-------------------+
+                                |     Frontend      |
+                                |   (React + nginx) |
+                                +---------+---------+
+                                          |  HTTP (/api/*)
+                      +-------------------+-------------------+
+                      |                                       |
+             +--------v--------+                     +--------v--------+
+             |   Order API     |  <--- JWT verify --- |   User Service  |
+             |  (order-api)    |                      |  (user-service) |
+             +--------+--------+                      +--------+--------+
+                      |                                        |
+                      | writes/reads                           | writes/reads
+                      v                                        v
+             +-----------------------------------------------------+
+             |                   PostgreSQL (orders)                |
+             +-----------------------------------------------------+
+                      |
+                      | push ORDER_CREATED event
+                      v
+             +-----------------+        poll order_queue        +------------------+
+             |      Redis      | <-----------------------------> |  Worker Service  |
+             |  (cache + queue)|                                 |     (worker)     |
+             +--------+--------+                                 +--------+---------+
+                      ^                                                   |
+                      | push ORDER_PROCESSED /                            | recommendations
+                      | ORDER_CANCELLED / OUT_OF_STOCK                    v
+                      |                                          +------------------+
+                      +----------------------------------------- |   (same queue)   |
+                      |                                          +------------------+
+                      | poll notification_queue
+                      v
+             +--------------------+       SMTP / Twilio
+             | Notification Svc   | ------------------------>  Email / SMS
+             |   (notification)   |
+             +---------------------+
+
+   Cross-cutting (all services):
+   +-----------+   +------------+   +------------+
+   | Prometheus|   |  Grafana   |   |   Jaeger   |
+   | (metrics) |   |(dashboards)|   | (tracing)  |
+   +-----------+   +------------+   +------------+
+```
+
 ## Tech Stack
 
 - **Backend framework:** Spring Boot 3.5 (Java 17), Spring Security, Spring Data JPA

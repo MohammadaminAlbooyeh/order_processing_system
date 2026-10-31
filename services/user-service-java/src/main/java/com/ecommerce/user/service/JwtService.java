@@ -38,6 +38,10 @@ public class JwtService {
      */
     static SecretKey deriveKey(String secret) {
         String effective = (secret == null || secret.isBlank()) ? DEFAULT_DEV_SECRET : secret;
+        if (effective.equals(DEFAULT_DEV_SECRET) && "prod".equalsIgnoreCase(System.getenv("APP_ENV"))) {
+            throw new IllegalStateException(
+                    "SECRET_KEY must be set to a non-default value when APP_ENV=prod");
+        }
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256")
                     .digest(effective.getBytes(StandardCharsets.UTF_8));
