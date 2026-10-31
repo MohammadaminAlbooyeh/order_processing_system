@@ -33,7 +33,12 @@ public class NotificationPublisher {
         }
     }
 
-    public void sendOutOfStockNotification(long userId, String message) {
-        publishEvent("OUT_OF_STOCK", Map.of("user_id", userId, "message", message));
+    public void sendOutOfStockNotification(long userId, String userEmail, String userPhone, String message) {
+        Map<String, Object> data = new HashMap<>();
+        data.put("user_id", userId);
+        data.put("user_email", userEmail);
+        data.put("user_phone", userPhone);
+        data.put("message", message);
+        publishEvent("OUT_OF_STOCK", data);
     }
 }

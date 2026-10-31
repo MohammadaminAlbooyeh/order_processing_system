@@ -30,6 +30,9 @@ class OrderProcessingServiceTest {
     @Mock
     private NotificationPublisher notificationPublisher;
 
+    @Mock
+    private RecommendationService recommendationService;
+
     @InjectMocks
     private OrderProcessingService service;
 
@@ -39,17 +42,18 @@ class OrderProcessingServiceTest {
                 List.of(new OrderItem(10, 2)));
         when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
 
-        service.processOrder(1L);
+        service.processOrder(1L, "jane@example.com", "+15551234567");
 
-        verify(orderRepository).updateStatus(1L, "PROCESSING");
+        verify(orderRepository).updateStatus(1L, "processing");
         verify(notificationPublisher).publishEvent(eq("ORDER_PROCESSED"), anyMap());
+        verify(recommendationService).calculateRecommendations(1L);
     }
 
     @Test
     void processOrder_orderNotFound_doesNothing() {
         when(orderRepository.findById(999L)).thenReturn(Optional.empty());
 
-        service.processOrder(999L);
+        service.processOrder(999L, "jane@example.com", "+15551234567");
 
         verify(orderRepository, never()).updateStatus(anyLong(), anyString());
         verify(notificationPublisher, never()).publishEvent(anyString(), anyMap());
@@ -61,9 +65,9 @@ class OrderProcessingServiceTest {
                 List.of(new OrderItem(999, 100)));
         when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
 
-        service.processOrder(1L);
+        service.processOrder(1L, "jane@example.com", "+15551234567");
 
-        verify(notificationPublisher).sendOutOfStockNotification(eq(1L), contains("999"));
+        verify(notificationPublisher).sendOutOfStockNotification(eq(1L), anyString(), anyString(), contains("999"));
         verify(orderRepository, never()).updateStatus(anyLong(), anyString());
     }
 }

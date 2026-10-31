@@ -66,6 +66,29 @@ class NotificationEventListenerTest {
     @Test
     void pollQueue_unrecognizedEventType_doesNotNotify() {
         when(redisTemplate.opsForList()).thenReturn(listOperations);
+        String event = "{\"type\":\"MYSTERY_EVENT\",\"order_id\":123}";
+        when(listOperations.leftPop("notification_queue")).thenReturn(event);
+
+        listener.pollQueue();
+
+        verifyNoInteractions(emailSender, smsSender);
+    }
+
+    @Test
+    void pollQueue_orderCancelledEvent_sendsEmailOnly() {
+        when(redisTemplate.opsForList()).thenReturn(listOperations);
+        String event = "{\"type\":\"ORDER_CANCELLED\",\"order_id\":123,\"user_email\":\"jane@example.com\"}";
+        when(listOperations.leftPop("notification_queue")).thenReturn(event);
+
+        listener.pollQueue();
+
+        verify(emailSender).send(eq("jane@example.com"), contains("123"), anyString());
+        verifyNoInteractions(smsSender);
+    }
+
+    @Test
+    void pollQueue_orderCancelledEvent_noRecipient_skips() {
+        when(redisTemplate.opsForList()).thenReturn(listOperations);
         String event = "{\"type\":\"ORDER_CANCELLED\",\"order_id\":123}";
         when(listOperations.leftPop("notification_queue")).thenReturn(event);
 

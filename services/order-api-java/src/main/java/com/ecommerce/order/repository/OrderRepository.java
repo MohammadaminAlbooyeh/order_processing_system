@@ -23,7 +23,7 @@ public class OrderRepository {
 
     public Optional<Order> findById(Long orderId) {
         List<Order> rows = jdbcTemplate.query(
-                "SELECT id, user_id, status, destination, weight, items::text AS items_json FROM orders WHERE id = ?",
+                "SELECT id, user_id, status, destination, weight, items::text AS items_json, created_at, updated_at FROM orders WHERE id = ?",
                 (rs, rowNum) -> {
                     Order order = new Order();
                     order.setId(rs.getLong("id"));

@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -23,13 +24,17 @@ public class OrderProcessingService {
 
     private final OrderRepository orderRepository;
     private final NotificationPublisher notificationPublisher;
+    private final RecommendationService recommendationService;
 
-    public OrderProcessingService(OrderRepository orderRepository, NotificationPublisher notificationPublisher) {
+    public OrderProcessingService(OrderRepository orderRepository,
+                                  NotificationPublisher notificationPublisher,
+                                  RecommendationService recommendationService) {
         this.orderRepository = orderRepository;
         this.notificationPublisher = notificationPublisher;
+        this.recommendationService = recommendationService;
     }
 
-    public void processOrder(long orderId) {
+    public void processOrder(long orderId, String userEmail, String userPhone) {
         try {
             logger.info("Processing order: {}", orderId);
             Optional<Order> maybeOrder = orderRepository.findById(orderId);
@@ -46,21 +51,28 @@ public class OrderProcessingService {
                 if (!ProductCatalog.hasInventory(item.productId(), item.quantity())) {
                     logger.warn("Inventory check failed for order {}, item {}", orderId, item.productId());
                     notificationPublisher.sendOutOfStockNotification(
-                            order.userId(), "Item " + item.productId() + " out of stock");
+                            order.userId(), userEmail, userPhone,
+                            "Item " + item.productId() + " out of stock");
                     return;
                 }
             }
 
             List<Integer> recommendations = recommendProducts(order.items());
 
-            orderRepository.updateStatus(orderId, "PROCESSING");
-            logger.info("Order {} status updated to PROCESSING", orderId);
+            orderRepository.updateStatus(orderId, "processing");
+            logger.info("Order {} status updated to processing", orderId);
 
-            notificationPublisher.publishEvent("ORDER_PROCESSED", Map.of(
-                    "order_id", orderId,
-                    "recommendations", recommendations
-            ));
+            Map<String, Object> event = new HashMap<>();
+            event.put("order_id", orderId);
+            event.put("user_id", order.userId());
+            event.put("user_email", userEmail);
+            event.put("user_phone", userPhone);
+            event.put("recommendations", recommendations);
+            notificationPublisher.publishEvent("ORDER_PROCESSED", event);
             logger.info("Order {} processed successfully", orderId);
+
+            // Refresh this user's cached product recommendations off the back of the new order.
+            recommendationService.calculateRecommendations(order.userId());
         } catch (Exception e) {
             logger.error("Error processing order {}: {}", orderId, e.getMessage(), e);
         }

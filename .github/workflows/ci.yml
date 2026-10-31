@@ -51,6 +51,27 @@ jobs:
       - name: Build image
         run: docker build -f services/${{ matrix.service }}/Dockerfile -t ${{ matrix.service }}:ci .
 
+  integration:
+    name: Compose smoke test
+    runs-on: ubuntu-latest
+    needs: java-tests
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start the stack
+        run: docker compose up -d --build postgres redis jaeger order-api user-service worker notification
+
+      - name: Run smoke test
+        run: ./scripts/smoke-test.sh
+
+      - name: Dump logs on failure
+        if: failure()
+        run: docker compose logs --no-color
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
+
   frontend:
     name: Frontend build
     runs-on: ubuntu-latest

@@ -1,12 +1,15 @@
 package com.ecommerce.order.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import jakarta.validation.constraints.Positive;
 
 public class OrderItem {
     @JsonProperty("product_id")
+    @Positive
     private int productId;
 
     @JsonProperty("quantity")
+    @Positive
     private int quantity;
 
     public OrderItem() {}

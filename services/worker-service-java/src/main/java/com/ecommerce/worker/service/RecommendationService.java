@@ -17,9 +17,8 @@ import java.util.Map;
 
 /**
  * Java port of calculate_recommendations / MockMLModel from the Python worker.
- * Note: nothing in this system currently triggers this flow automatically
- * (same gap exists in the original Python worker-service) - it is exposed
- * here as a directly callable service, same as the Python version.
+ * Triggered by {@link OrderProcessingService} after each order is processed, so a
+ * user's cached recommendations stay current with their purchase history.
  */
 @Service
 public class RecommendationService {

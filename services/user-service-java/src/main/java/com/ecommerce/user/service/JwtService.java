@@ -5,24 +5,49 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.Base64;
 import java.util.Date;
 
 @Service
 public class JwtService {
 
     private static final Logger logger = LoggerFactory.getLogger(JwtService.class);
-    private static final String SECRET_KEY = System.getenv("SECRET_KEY");
-    private static final String ALGORITHM = "HS256";
     private static final long EXPIRATION_MINUTES = 60;
 
+    /** Must match com.ecommerce.order.util.JwtUtil#DEFAULT_DEV_SECRET. */
+    static final String DEFAULT_DEV_SECRET = "insecure-dev-secret-change-me-in-production";
+
+    private final SecretKey key;
+
+    public JwtService(@Value("${SECRET_KEY:}") String secret) {
+        this.key = deriveKey(secret);
+    }
+
+    /**
+     * Derives a 256-bit HMAC key by SHA-256 of the secret string. This accepts any
+     * secret (any length, any encoding) so a misconfigured value can never crash
+     * token creation; order-api derives its verification key identically.
+     */
+    static SecretKey deriveKey(String secret) {
+        String effective = (secret == null || secret.isBlank()) ? DEFAULT_DEV_SECRET : secret;
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(effective.getBytes(StandardCharsets.UTF_8));
+            return Keys.hmacShaKeyFor(digest);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 not available", e);
+        }
+    }
+
     public String createToken(Long userId) {
-        SecretKey key = Keys.hmacShaKeyFor(Base64.getDecoder().decode(SECRET_KEY));
         Instant now = Instant.now();
         return Jwts.builder()
                 .subject(String.valueOf(userId))
@@ -34,7 +59,6 @@ public class JwtService {
 
     public Long extractUserId(String token) {
         try {
-            SecretKey key = Keys.hmacShaKeyFor(Base64.getDecoder().decode(SECRET_KEY));
             Claims claims = Jwts.parser()
                     .verifyWith(key)
                     .build()

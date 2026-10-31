@@ -37,4 +37,30 @@ public final class NotificationMessageFormatter {
     public static String buildTrackingSmsBody(long orderId) {
         return "Order " + orderId + " confirmed! Track at: ecommerce.com/track/" + orderId;
     }
+
+    public static String buildOrderCancelledSubject(long orderId) {
+        return "Order #" + orderId + " Cancelled";
+    }
+
+    public static String buildOrderCancelledBody(long orderId) {
+        return """
+                Your order has been cancelled.
+                Order ID: %d
+
+                If this was not you, please contact support.
+                """.formatted(orderId);
+    }
+
+    public static String buildOutOfStockSubject() {
+        return "An item in your order is out of stock";
+    }
+
+    public static String buildOutOfStockBody(String message) {
+        return """
+                We could not fully process your order.
+                %s
+
+                Any charge will be reversed. Sorry for the inconvenience.
+                """.formatted(message == null || message.isBlank() ? "An item is out of stock." : message);
+    }
 }

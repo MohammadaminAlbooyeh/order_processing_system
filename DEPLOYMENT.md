@@ -5,7 +5,7 @@
 - Docker & Docker Compose
 - Java 17+ and Maven (for local development of the backend services)
 - Node.js 20+ (for local development of the frontend)
-- Python 3.11+ (only needed for `seed_admin.py`, a small script that calls the user-service REST API)
+- `curl` and `bash` (for `scripts/seed-admin.sh` and `scripts/smoke-test.sh`)
 - PostgreSQL client tools (optional, for debugging)
 
 ## Local Development Setup

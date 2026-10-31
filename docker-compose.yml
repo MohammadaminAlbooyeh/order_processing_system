@@ -1,5 +1,4 @@
 # docker-compose.yml
-version: '3.8'
 
 services:
   # PostgreSQL Database
@@ -13,12 +12,24 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ecommerce -d orders"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   # Redis (Cache + Message Queue)
   redis:
     image: redis:7
     ports:
       - "6379:6379"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   # Order API Service (Java)
   order-api:
@@ -30,12 +41,22 @@ services:
     environment:
       DATABASE_URL: postgresql://ecommerce:password@postgres:5432/orders
       REDIS_URL: redis://redis:6379
-      SECRET_KEY: change-me-in-production
+      SECRET_KEY: dev-secret-change-me-in-production
       OTLP_ENDPOINT: http://jaeger:4318/v1/traces
     depends_on:
-      - postgres
-      - redis
-      - jaeger
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      jaeger:
+        condition: service_started
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/8000' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
 
   # User Service (Java)
   user-service:
@@ -46,11 +67,20 @@ services:
       - "8002:8000"
     environment:
       DATABASE_URL: postgresql://ecommerce:password@postgres:5432/orders
-      SECRET_KEY: change-me-in-production
+      SECRET_KEY: dev-secret-change-me-in-production
       OTLP_ENDPOINT: http://jaeger:4318/v1/traces
     depends_on:
-      - postgres
-      - jaeger
+      postgres:
+        condition: service_healthy
+      jaeger:
+        condition: service_started
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/8000' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
 
   # Worker Service (Java)
   worker:
@@ -64,9 +94,13 @@ services:
       DATABASE_URL: postgresql://ecommerce:password@postgres:5432/orders
       OTLP_ENDPOINT: http://jaeger:4318/v1/traces
     depends_on:
-      - redis
-      - postgres
-      - jaeger
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      jaeger:
+        condition: service_started
+    restart: unless-stopped
 
   # Notification Service (Java)
   notification:
@@ -81,8 +115,11 @@ services:
       SMTP_PORT: 587
       OTLP_ENDPOINT: http://jaeger:4318/v1/traces
     depends_on:
-      - redis
-      - jaeger
+      redis:
+        condition: service_healthy
+      jaeger:
+        condition: service_started
+    restart: unless-stopped
 
   # Monitoring: Prometheus
   prometheus:
@@ -91,6 +128,7 @@ services:
       - "9090:9090"
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    restart: unless-stopped
 
   # Monitoring: Grafana
   grafana:
@@ -102,6 +140,9 @@ services:
     volumes:
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+    restart: unless-stopped
 
   # Monitoring: Jaeger (Distributed Tracing)
   jaeger:
@@ -109,6 +150,7 @@ services:
     ports:
       - "16686:16686"
       - "4318:4318"
+    restart: unless-stopped
 
   # Frontend (React)
   frontend:
@@ -120,6 +162,7 @@ services:
     depends_on:
       - order-api
       - user-service
+    restart: unless-stopped
 
 volumes:
   postgres_data:

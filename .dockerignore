@@ -1,0 +1,24 @@
+# Build context is the repo root; each service Dockerfile only needs
+# services/<name>-java/{pom.xml,src}. Keep everything else out of the context.
+.git
+.github
+venv
+.venv
+**/__pycache__
+*.pyc
+node_modules
+frontend/node_modules
+frontend/dist
+**/target
+monitoring
+tests
+shared
+docs
+*.md
+.env
+.env.*
+.DS_Store
+seed_admin.py
+requirements.txt
+start.sh
+scripts

@@ -13,9 +13,9 @@ import org.springframework.stereotype.Component;
 
 /**
  * Polls the "notification_queue" Redis list, mirroring the polling loop used by the
- * original Python service (lpush on the producer side, lpop here). Kept as a simple
- * poll-and-sleep loop rather than Redis pub/sub so the wire contract with
- * worker-service / order-api does not change.
+ * original Python service (lpush on the producer side, lpop here). Every event
+ * carries a "type" discriminator plus the recipient's contact details
+ * ("user_email" / "user_phone") supplied by the producing service.
  */
 @Component
 public class NotificationEventListener {
@@ -44,34 +44,65 @@ public class NotificationEventListener {
             JsonNode event = objectMapper.readTree(rawEvent);
             String type = event.path("type").asText("");
             logger.info("Processing event: {}", type);
-            if ("ORDER_PROCESSED".equals(type)) {
-                sendOrderConfirmationEmail(event);
-                sendSmsNotification(event);
+            switch (type) {
+                case "ORDER_PROCESSED" -> handleOrderProcessed(event);
+                case "ORDER_CANCELLED" -> handleOrderCancelled(event);
+                case "OUT_OF_STOCK" -> handleOutOfStock(event);
+                default -> logger.debug("No handler for event type: {}", type);
             }
         } catch (Exception e) {
             logger.error("Error processing notification event: {}", e.getMessage(), e);
         }
     }
 
-    private void sendOrderConfirmationEmail(JsonNode order) {
-        long orderId = order.path("order_id").asLong();
-        String subject = NotificationMessageFormatter.buildOrderConfirmationSubject(orderId);
-        String body = NotificationMessageFormatter.buildOrderConfirmationBody(orderId, order.path("recommendations"));
+    private void handleOrderProcessed(JsonNode event) {
+        long orderId = event.path("order_id").asLong();
+        String email = event.path("user_email").asText("");
+        String phone = event.path("user_phone").asText("");
 
+        sendEmail(email,
+                NotificationMessageFormatter.buildOrderConfirmationSubject(orderId),
+                NotificationMessageFormatter.buildOrderConfirmationBody(orderId, event.path("recommendations")),
+                orderId);
+        sendSms(phone, NotificationMessageFormatter.buildTrackingSmsBody(orderId), orderId);
+    }
+
+    private void handleOrderCancelled(JsonNode event) {
+        long orderId = event.path("order_id").asLong();
+        sendEmail(event.path("user_email").asText(""),
+                NotificationMessageFormatter.buildOrderCancelledSubject(orderId),
+                NotificationMessageFormatter.buildOrderCancelledBody(orderId),
+                orderId);
+    }
+
+    private void handleOutOfStock(JsonNode event) {
+        long orderId = event.path("order_id").asLong();
+        sendEmail(event.path("user_email").asText(""),
+                NotificationMessageFormatter.buildOutOfStockSubject(),
+                NotificationMessageFormatter.buildOutOfStockBody(event.path("message").asText("")),
+                orderId);
+    }
+
+    private void sendEmail(String to, String subject, String body, long orderId) {
+        if (to == null || to.isBlank()) {
+            logger.warn("No recipient email for order {} event; skipping email", orderId);
+            return;
+        }
         try {
-            emailSender.send(order.path("user_email").asText(""), subject, body);
+            emailSender.send(to, subject, body);
             logger.info("Email sent for order {}", orderId);
         } catch (Exception e) {
-            logger.error("Failed to send confirmation email: {}", e.getMessage(), e);
+            logger.error("Failed to send email: {}", e.getMessage(), e);
         }
     }
 
-    private void sendSmsNotification(JsonNode order) {
-        long orderId = order.path("order_id").asLong();
-        String smsBody = NotificationMessageFormatter.buildTrackingSmsBody(orderId);
-
+    private void sendSms(String to, String body, long orderId) {
+        if (to == null || to.isBlank()) {
+            logger.warn("No recipient phone for order {} event; skipping SMS", orderId);
+            return;
+        }
         try {
-            smsSender.send(order.path("user_phone").asText(""), smsBody);
+            smsSender.send(to, body);
             logger.info("SMS sent for order {}", orderId);
         } catch (Exception e) {
             logger.error("Failed to send SMS notification: {}", e.getMessage(), e);

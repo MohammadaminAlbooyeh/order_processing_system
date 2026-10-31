@@ -65,10 +65,21 @@ Host ports:
 ### Seeding an admin user
 
 ```bash
-python seed_admin.py
+./scripts/seed-admin.sh
 ```
 
-Creates `admin@example.com` / `Admin@123` via the user-service register endpoint.
+Creates `admin@example.com` / `Admin@123` via the user-service register endpoint
+(uses `curl` only — no Python required).
+
+### End-to-end smoke test
+
+```bash
+docker-compose up -d --build
+./scripts/smoke-test.sh
+```
+
+Registers a user, creates an order, and asserts the worker moves it to
+`processing` — a quick check that the cross-service Redis event path works.
 
 ## Service Communication
 

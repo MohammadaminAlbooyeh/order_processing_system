@@ -10,10 +10,9 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * Polls "order_queue", the Redis list order-api's create_order endpoint pushes
- * ORDER_CREATED events onto (services/order-api/routes.py). Nothing in the
- * original Python system consumed this list - worker-service only defined
- * Celery tasks that were never dispatched. This listener closes that gap.
+ * Polls "order_queue", the Redis list order-api pushes ORDER_CREATED events onto.
+ * Events carry a "type" discriminator plus the recipient's contact details, which
+ * are forwarded to notification-service once processing completes.
  */
 @Component
 public class OrderEventListener {
@@ -39,10 +38,13 @@ public class OrderEventListener {
         }
         try {
             JsonNode event = objectMapper.readTree(rawEvent);
-            String eventType = event.path("event").asText("");
+            String eventType = event.path("type").asText("");
             logger.info("Received order event: {}", eventType);
             if (ORDER_CREATED_EVENT.equals(eventType)) {
-                orderProcessingService.processOrder(event.path("order_id").asLong());
+                orderProcessingService.processOrder(
+                        event.path("order_id").asLong(),
+                        event.path("user_email").asText(""),
+                        event.path("user_phone").asText(""));
             }
         } catch (Exception e) {
             logger.error("Error processing order event: {}", e.getMessage(), e);

@@ -7,17 +7,46 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.crypto.SecretKey;
-import java.util.Base64;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
+/**
+ * Verifies JWTs issued by user-service. The signing key is derived by SHA-256 of
+ * the shared {@code SECRET_KEY} so any secret string (regardless of length or
+ * encoding) yields a valid 256-bit HMAC key. user-service derives its key the
+ * exact same way, so tokens round-trip between the two services.
+ */
 public class JwtUtil {
 
     private static final Logger logger = LoggerFactory.getLogger(JwtUtil.class);
-    private static final String SECRET_KEY = System.getenv("SECRET_KEY");
-    private static final String ALGORITHM = "HS256";
+
+    /** Must match com.ecommerce.user.service.JwtService#DEFAULT_DEV_SECRET. */
+    static final String DEFAULT_DEV_SECRET = "insecure-dev-secret-change-me-in-production";
+
+    private final SecretKey key;
+
+    public JwtUtil() {
+        this(System.getenv("SECRET_KEY"));
+    }
+
+    public JwtUtil(String secret) {
+        this.key = deriveKey(secret);
+    }
+
+    static SecretKey deriveKey(String secret) {
+        String effective = (secret == null || secret.isBlank()) ? DEFAULT_DEV_SECRET : secret;
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(effective.getBytes(StandardCharsets.UTF_8));
+            return Keys.hmacShaKeyFor(digest);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 not available", e);
+        }
+    }
 
     public Long extractUserId(String token) {
         try {
-            SecretKey key = Keys.hmacShaKeyFor(Base64.getDecoder().decode(SECRET_KEY));
             Claims claims = Jwts.parser()
                     .verifyWith(key)
                     .build()

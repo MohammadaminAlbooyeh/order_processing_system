@@ -25,7 +25,7 @@ This starts:
 
 ### 2. Create Admin Test User (in another terminal)
 ```bash
-python seed_admin.py
+./scripts/seed-admin.sh
 ```
 
 Output:
